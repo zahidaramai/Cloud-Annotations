@@ -87,5 +87,9 @@ module.exports = async (prompt, items, delegate = {}) => {
   process.stdout.write(eraseLines(delegate.windowSize + 1))
   process.stdout.write(cursorShow)
   process.removeListener('exit', handleExit)
+
+  if (delegate.returnIndex) {
+    return answer
+  }
   return items[answer]
 }

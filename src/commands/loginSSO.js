@@ -1,4 +1,7 @@
-const { cyan, dim, bold } = require('chalk')
+const os = require('os')
+const path = require('path')
+const fs = require('fs-extra')
+const { cyan, dim, bold, green } = require('chalk')
 const request = require('request-promise-native')
 const open = require('open')
 const input = require('./../utils/input')
@@ -8,6 +11,8 @@ const Spinner = require('./../utils/spinner')
 const { eraseLines } = require('ansi-escapes')
 
 const toBase64 = str => Buffer.from(str, 'utf8').toString('base64')
+
+const CREDENTIAL_PATH = path.join(os.homedir(), '.cacli', 'credentials.json')
 
 module.exports = async () => {
   const baseEndpoint = 'cloud.ibm.com'
@@ -78,17 +83,19 @@ module.exports = async () => {
     }
   })
 
-  const account = await picker(
+  const iAccount = await picker(
     `${bold('Accounts')} ${dim('(Use arrow keys and enter to choose)')}`,
     accounts.map(a => a.name),
     {
-      default: 0
+      default: 0,
+      returnIndex: true
     }
   )
 
-  console.log(`Account ${cyan.bold(account)}`)
+  const account = accounts[iAccount]
+  console.log(`Account ${cyan.bold(account.name)}`)
 
-  const accountId = accounts.find(a => a.name === account).id
+  const accountId = account.id
 
   console.log()
   spinner.setMessage('Loading resources...')
@@ -120,18 +127,20 @@ module.exports = async () => {
   })
   spinner.stop()
 
-  const objectStorage = await picker(
+  const iObjectStorage = await picker(
     `${bold('Object Storage Instances')} ${dim(
       '(Use arrow keys and enter to choose)'
     )}`,
     objectStorageResources.resources.map(a => a.name),
     {
-      default: 0
+      default: 0,
+      returnIndex: true
     }
   )
 
+  const objectStorage = objectStorageResources.resources[iObjectStorage]
   process.stdout.write(eraseLines(2))
-  console.log(`Object Storage Instance ${cyan.bold(objectStorage)}`)
+  console.log(`Object Storage Instance ${cyan.bold(objectStorage.name)}`)
 
   console.log()
   spinner.start()
@@ -145,16 +154,62 @@ module.exports = async () => {
   })
   spinner.stop()
 
-  const machineLearning = await picker(
+  const iMachineLearning = await picker(
     `${bold('Machine Learning Instances')} ${dim(
       '(Use arrow keys and enter to choose)'
     )}`,
     machineLearningResources.resources.map(a => a.name),
     {
-      default: 0
+      default: 0,
+      returnIndex: true
     }
   )
 
+  const machineLearning = machineLearningResources.resources[iMachineLearning]
   process.stdout.write(eraseLines(2))
-  console.log(`Machine Learning Instance ${cyan.bold(machineLearning)}`)
+  console.log(`Machine Learning Instance ${cyan.bold(machineLearning.name)}`)
+
+  console.log()
+  spinner.setMessage('Verifying...')
+  spinner.start()
+
+  const findCredential = await request({
+    url: `https://resource-controller.${baseEndpoint}/v2/resource_keys?name=cloud-annotations-binding`,
+    method: 'GET',
+    headers: {
+      Authorization: 'bearer ' + upgradedToken.access_token
+    },
+    json: true
+  })
+
+  let cosCredential = findCredential.resources[0]
+
+  if (cosCredential === undefined) {
+    cosCredential = await request({
+      url: `https://resource-controller.${baseEndpoint}/v2/resource_keys`,
+      method: 'POST',
+      headers: {
+        Authorization: 'bearer ' + upgradedToken.access_token
+      },
+      body: {
+        name: 'cloud-annotations-binding',
+        source: objectStorage.id,
+        role: 'Writer',
+        parameters: { HMAC: true }
+      },
+      json: true
+    })
+  }
+
+  spinner.stop()
+  console.log(`${green('success')} You are now logged in.`)
+
+  fs.outputFileSync(
+    CREDENTIAL_PATH,
+    JSON.stringify({
+      access_token: upgradedToken.access_token,
+      machine_learning_instance: machineLearning,
+      object_storage_instance: cosCredential
+    })
+  )
 }
