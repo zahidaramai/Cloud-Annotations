@@ -1,12 +1,12 @@
 const { dim, bold, red, green } = require('chalk')
 const WML = require('./../api/wml')
 const progress = require('./../commands/progress')
+const login = require('./../commands/login')
 const input = require('./../utils/input')
 const stringLength = require('./../utils/stringLength')
 const stringToBool = require('./../utils/stringToBool')
 const optionsParse = require('./../utils/optionsParse')
 const Spinner = require('./../utils/spinner')
-const loadCredentials = require('./../utils/loadCredentials')
 const picker = require('./../utils/picker')
 const COS = require('ibm-cos-sdk')
 const cosEndpointBuilder = require('./../utils/cosEndpointBuilder')
@@ -14,6 +14,9 @@ const ConfigBuilder = require('./../utils/configBuilder')
 const os = require('os')
 const path = require('path')
 const fs = require('fs-extra')
+const request = require('request-promise-native')
+
+const toBase64 = str => Buffer.from(str, 'utf8').toString('base64')
 
 async function listBuckets({ region, access_key_id, secret_access_key }) {
   const config = {
@@ -78,26 +81,60 @@ module.exports = async options => {
   }
 
   // ///////////////////////////////////////////////////////////////////////////
-  // const { credentials } = await loadCredentials()
   const CREDENTIAL_PATH = path.join(os.homedir(), '.cacli', 'credentials.json')
   const rawCredentials = JSON.parse(fs.readFileSync(CREDENTIAL_PATH, 'utf8'))
+
+  // try to refresh the token.
+  const baseEndpoint = 'cloud.ibm.com'
+  const endpointsEndpoint = `https://iam.${baseEndpoint}/identity/.well-known/openid-configuration`
+  const identityEndpoints = await request({
+    url: endpointsEndpoint,
+    method: 'GET',
+    json: true
+  })
+  const tokenEndpoint = identityEndpoints.token_endpoint
+  try {
+    const refreshedToken = await request({
+      url: tokenEndpoint,
+      method: 'POST',
+      headers: {
+        Authorization: `Basic ${toBase64('bx:bx')}`
+      },
+      form: {
+        grant_type: 'refresh_token',
+        refresh_token: rawCredentials.refresh_token
+      },
+      json: true
+    })
+
+    rawCredentials.access_token = refreshedToken.access_token
+    rawCredentials.refresh_token = refreshedToken.refresh_token
+
+    fs.outputFileSync(CREDENTIAL_PATH, JSON.stringify(rawCredentials))
+  } catch {
+    await login(['--sso'])
+    // TODO: login stops the node process :p
+  }
+
+  const safeCredentials = JSON.parse(fs.readFileSync(CREDENTIAL_PATH, 'utf8'))
   // TODO: fix the region
   const credentials = {
     wml: {
-      instance_id: rawCredentials.machine_learning_instance.guid,
-      access_token: rawCredentials.access_token,
-      url: `https://${rawCredentials.machine_learning_instance.region_id}.ml.cloud.ibm.com`
+      instance_id: safeCredentials.machine_learning_instance.guid,
+      access_token: safeCredentials.access_token,
+      url: `https://${safeCredentials.machine_learning_instance.region_id}.ml.cloud.ibm.com`
     },
     cos: {
       access_key_id:
-        rawCredentials.object_storage_instance.credentials.cos_hmac_keys
+        safeCredentials.object_storage_instance.credentials.cos_hmac_keys
           .access_key_id,
       secret_access_key:
-        rawCredentials.object_storage_instance.credentials.cos_hmac_keys
+        safeCredentials.object_storage_instance.credentials.cos_hmac_keys
           .secret_access_key,
       region: 'us'
     }
   }
+
   // ///////////////////////////////////////////////////////////////////////////
 
   const spinner = new Spinner()

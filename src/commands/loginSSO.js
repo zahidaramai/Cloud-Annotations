@@ -225,6 +225,7 @@ module.exports = async () => {
     CREDENTIAL_PATH,
     JSON.stringify({
       access_token: upgradedToken.access_token,
+      refresh_token: upgradedToken.refresh_token,
       machine_learning_instance: machineLearning,
       object_storage_instance: cosCredential
     })
