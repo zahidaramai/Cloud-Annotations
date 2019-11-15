@@ -83,14 +83,17 @@ module.exports = async () => {
     }
   })
 
-  const iAccount = await picker(
-    `${bold('Accounts')} ${dim('(Use arrow keys and enter to choose)')}`,
-    accounts.map(a => a.name),
-    {
-      default: 0,
-      returnIndex: true
-    }
-  )
+  let iAccount = 0
+  if (accounts.length > 1) {
+    iAccount = await picker(
+      `${bold('Accounts')} ${dim('(Use arrow keys and enter to choose)')}`,
+      accounts.map(a => a.name),
+      {
+        default: 0,
+        returnIndex: true
+      }
+    )
+  }
 
   const account = accounts[iAccount]
   console.log(`Account ${cyan.bold(account.name)}`)
@@ -127,16 +130,23 @@ module.exports = async () => {
   })
   spinner.stop()
 
-  const iObjectStorage = await picker(
-    `${bold('Object Storage Instances')} ${dim(
-      '(Use arrow keys and enter to choose)'
-    )}`,
-    objectStorageResources.resources.map(a => a.name),
-    {
-      default: 0,
-      returnIndex: true
-    }
-  )
+  if (objectStorageResources.next_url) {
+    // TODO: check if there are more accounts
+  }
+
+  let iObjectStorage = 0
+  if (objectStorageResources.resources.length > 1) {
+    iObjectStorage = await picker(
+      `${bold('Object Storage Instances')} ${dim(
+        '(Use arrow keys and enter to choose)'
+      )}`,
+      objectStorageResources.resources.map(a => a.name),
+      {
+        default: 0,
+        returnIndex: true
+      }
+    )
+  }
 
   const objectStorage = objectStorageResources.resources[iObjectStorage]
   process.stdout.write(eraseLines(2))
@@ -154,16 +164,23 @@ module.exports = async () => {
   })
   spinner.stop()
 
-  const iMachineLearning = await picker(
-    `${bold('Machine Learning Instances')} ${dim(
-      '(Use arrow keys and enter to choose)'
-    )}`,
-    machineLearningResources.resources.map(a => a.name),
-    {
-      default: 0,
-      returnIndex: true
-    }
-  )
+  if (machineLearningResources.next_url) {
+    // TODO: check if there are more accounts
+  }
+
+  let iMachineLearning = 0
+  if (machineLearningResources.resources.length > 1) {
+    iMachineLearning = await picker(
+      `${bold('Machine Learning Instances')} ${dim(
+        '(Use arrow keys and enter to choose)'
+      )}`,
+      machineLearningResources.resources.map(a => a.name),
+      {
+        default: 0,
+        returnIndex: true
+      }
+    )
+  }
 
   const machineLearning = machineLearningResources.resources[iMachineLearning]
   process.stdout.write(eraseLines(2))
