@@ -5,6 +5,7 @@ const input = require('./../utils/input')
 const stringToBool = require('./../utils/stringToBool')
 const picker = require('./../utils/picker')
 const Spinner = require('./../utils/spinner')
+const { eraseLines } = require('ansi-escapes')
 
 const toBase64 = str => Buffer.from(str, 'utf8').toString('base64')
 
@@ -33,6 +34,7 @@ module.exports = async () => {
   const otp = await input(`One-Time Passcode ${cyan.bold('❯')} `)
 
   const spinner = new Spinner()
+  console.log()
   spinner.setMessage('Authenticating...')
   spinner.start()
 
@@ -76,54 +78,21 @@ module.exports = async () => {
     }
   })
 
-  console.log()
-  console.log(bold('XXXXXXX'))
   const account = await picker(
-    `targeted account: ${dim('(Use arrow keys and enter to choose)')}`,
+    `${bold('Accounts')} ${dim('(Use arrow keys and enter to choose)')}`,
     accounts.map(a => a.name),
     {
       default: 0
     }
   )
 
-  console.log(`targeted account: ${account}`)
+  console.log(`Account ${cyan.bold(account)}`)
 
   const accountId = accounts.find(a => a.name === account).id
 
-  // Select an account:
-  // 1. Nicholas Bourdakos's Account (19552f679a1f1feba412927e04b32553)
-  // 2. IBM (47b84451ab70b94737518f7640a9ee42) <-> 1323471
-  // 3. David Okun Customer PoC Account (9b8365854de24dac80960ac3dbd8c7d5) <-> 1901679
-  // 4. STEFAN KWIATKOWSKI's Account (8181f93cf3b742dbd2ab762ed3a2ae26)
-  // 5. IBM CTO Brazil (65aa671b2a20403b99ca8dbd195d3dbf) <-> 1899847
-  // Enter a number>
-
-  //   Targeted account Nicholas Bourdakos's Account (19552f679a1f1feba412927e04b32553)
-
-  // Targeted resource group default
-
-  // Select a region (or press enter to skip):
-  // 1. au-syd
-  // 2. in-che
-  // 3. jp-osa
-  // 4. jp-tok
-  // 5. kr-seo
-  // 6. eu-de
-  // 7. eu-gb
-  // 8. us-south
-  // 9. us-south-test
-  // 10. us-east
-  // Enter a number>
-
-  // API endpoint:      https://cloud.ibm.com
-  // Region:
-  // User:              nicholas.bourdakos@ibm.com
-  // Account:           Nicholas Bourdakos's Account (19552f679a1f1feba412927e04b32553)
-  // Resource group:    default
-  // CF API endpoint:
-  // Org:
-  // Space:
-
+  console.log()
+  spinner.setMessage('Loading resources...')
+  spinner.start()
   const upgradedToken = await request({
     url: tokenEndpoint,
     method: 'POST',
@@ -149,15 +118,23 @@ module.exports = async () => {
     },
     json: true
   })
+  spinner.stop()
 
-  await picker(
-    `targeted account: ${dim('(Use arrow keys and enter to choose)')}`,
+  const objectStorage = await picker(
+    `${bold('Object Storage Instances')} ${dim(
+      '(Use arrow keys and enter to choose)'
+    )}`,
     objectStorageResources.resources.map(a => a.name),
     {
       default: 0
     }
   )
 
+  process.stdout.write(eraseLines(2))
+  console.log(`Object Storage Instance ${cyan.bold(objectStorage)}`)
+
+  console.log()
+  spinner.start()
   const machineLearningResources = await request({
     url: machineLearningResourcesEndpoint,
     method: 'GET',
@@ -166,12 +143,18 @@ module.exports = async () => {
     },
     json: true
   })
+  spinner.stop()
 
-  await picker(
-    `targeted account: ${dim('(Use arrow keys and enter to choose)')}`,
+  const machineLearning = await picker(
+    `${bold('Machine Learning Instances')} ${dim(
+      '(Use arrow keys and enter to choose)'
+    )}`,
     machineLearningResources.resources.map(a => a.name),
     {
       default: 0
     }
   )
+
+  process.stdout.write(eraseLines(2))
+  console.log(`Machine Learning Instance ${cyan.bold(machineLearning)}`)
 }
