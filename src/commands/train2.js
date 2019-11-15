@@ -11,6 +11,9 @@ const picker = require('./../utils/picker')
 const COS = require('ibm-cos-sdk')
 const cosEndpointBuilder = require('./../utils/cosEndpointBuilder')
 const ConfigBuilder = require('./../utils/configBuilder')
+const os = require('os')
+const path = require('path')
+const fs = require('fs-extra')
 
 async function listBuckets({ region, access_key_id, secret_access_key }) {
   const config = {
@@ -67,7 +70,35 @@ module.exports = async options => {
   }
 
   const config = new ConfigBuilder()
-  const { credentials } = await loadCredentials()
+  if (ops.gpu) {
+    config.setGPU(ops.gpu)
+  }
+  if (ops.steps) {
+    config.setSteps(ops.steps)
+  }
+
+  // ///////////////////////////////////////////////////////////////////////////
+  // const { credentials } = await loadCredentials()
+  const CREDENTIAL_PATH = path.join(os.homedir(), '.cacli', 'credentials.json')
+  const rawCredentials = JSON.parse(fs.readFileSync(CREDENTIAL_PATH, 'utf8'))
+  // TODO: fix the region
+  const credentials = {
+    wml: {
+      instance_id: rawCredentials.machine_learning_instance.guid,
+      access_token: rawCredentials.access_token,
+      url: `https://${rawCredentials.machine_learning_instance.region_id}.ml.cloud.ibm.com`
+    },
+    cos: {
+      access_key_id:
+        rawCredentials.object_storage_instance.credentials.cos_hmac_keys
+          .access_key_id,
+      secret_access_key:
+        rawCredentials.object_storage_instance.credentials.cos_hmac_keys
+          .secret_access_key,
+      region: 'us'
+    }
+  }
+  // ///////////////////////////////////////////////////////////////////////////
 
   const spinner = new Spinner()
   spinner.setMessage('Loading buckets...')

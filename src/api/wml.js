@@ -23,9 +23,9 @@ const DEFAULT_TRAINING_DEFINITION = {
 class WML {
   constructor(config) {
     const { cos, wml } = config.credentials
-    const { url, instance_id, api_key } = wml
+    const { url, instance_id, api_key, access_token } = wml
     const { name, buckets, trainingParams } = config
-    this._token = undefined
+    this._token = access_token
     this._url = url
     this._instanceId = instance_id
     this._apiKey = api_key
