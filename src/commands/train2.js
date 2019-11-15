@@ -14,76 +14,6 @@ const CredentialsBuilder = require('./../utils/credentialsBuilder')
 const cosEndpointBuilder = require('./../utils/cosEndpointBuilder')
 const Spinner = require('./../utils/spinner')
 
-const validateConfig = async config => {
-  const spinner = new Spinner()
-  spinner.setMessage('Validating config...')
-  spinner.start()
-
-  let errors = false
-  try {
-    await new WML(config).authenticate()
-  } catch {
-    spinner.stop()
-    console.error(
-      `${red('error')} Invalid Watson Machine Learning credentials.`
-    )
-    errors = true
-  }
-
-  try {
-    const { region, access_key_id, secret_access_key } = config.credentials.cos
-    const cosConfig = {
-      endpoint: cosEndpointBuilder(region, true),
-      accessKeyId: access_key_id,
-      secretAccessKey: secret_access_key
-    }
-    const cos = new COS.S3(cosConfig)
-
-    await cos
-      .listBuckets()
-      .promise()
-      .then(data =>
-        data.Buckets.map(bucket => {
-          return bucket.Name
-        })
-      )
-    try {
-      // We must have a training bucket, so always check.
-      await cos
-        .getBucketLocation({ Bucket: config.buckets.training })
-        .promise()
-        .then(data => data.LocationConstraint)
-    } catch {
-      spinner.stop()
-      console.error(`${red('error')} Invalid training bucket.`)
-      errors = true
-    }
-
-    try {
-      // We don't need an output bucket, so only check if one was provided.
-      if (config.buckets.output) {
-        await cos
-          .getBucketLocation({ Bucket: config.buckets.output })
-          .promise()
-          .then(data => data.LocationConstraint)
-      }
-    } catch {
-      spinner.stop()
-      console.error(`${red('error')} Invalid output bucket.`)
-      errors = true
-    }
-  } catch {
-    spinner.stop()
-    console.error(`${red('error')} Invalid Cloud Object Storage credentials.`)
-    errors = true
-  }
-
-  if (errors) {
-    throw Error()
-  }
-  spinner.stop()
-}
-
 module.exports = async options => {
   const parser = optionsParse()
   parser.add('training_zip')
@@ -148,14 +78,12 @@ module.exports = async options => {
   spinner.stop()
 
   if (!validTraining) {
-    console.warn(
-      `${yellow(
-        'warning'
-      )} The selected training bucket is not in the region \`${
+    console.error(
+      `${red('error')} The selected training bucket is not in the region \`${
         credentials.cos.region
       }\`.`
     )
-    console.log()
+    return process.exit(1)
   }
 
   const defaultProjectName =
@@ -167,13 +95,6 @@ module.exports = async options => {
 
   config.credentials = credentials.credentials
 
-  try {
-    await validateConfig(config)
-  } catch {
-    return process.exit(1)
-  }
-
-  const spinner = new Spinner()
   spinner.setMessage('Starting training run...')
   spinner.start()
   const wml = new WML(config)
