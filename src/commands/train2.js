@@ -87,7 +87,8 @@ const validateConfig = async config => {
 module.exports = async options => {
   const parser = optionsParse()
   parser.add('training_zip')
-  parser.add(['--config', '-c'])
+  parser.add(['--gpu'])
+  parser.add(['--steps'])
   parser.add([true, 'help', '--help', '-help', '-h'])
   const ops = parser.parse(options)
 
@@ -96,23 +97,71 @@ module.exports = async options => {
     return process.exit()
   }
 
-  const configPath = ops.config || 'config.yaml'
+  const { credentials } = await loadCredentials()
 
-  const config = await (async () => {
-    try {
-      const config = new ConfigBuilder(ops.config).config
-      yaml.safeLoad(fs.readFileSync(configPath)) // force a crash.
-      console.log(dim(`(Using settings from ${configPath})`))
-      return config
-    } catch {
-      // console.log(
-      //   `No ${configPath} found, we will only ask the required information.`
-      // )
-      // console.log()
-      const config = await init(['--config', configPath], true)
-      return config
-    }
-  })()
+  const spinner = new Spinner()
+  spinner.setMessage('Loading buckets...')
+  spinner.start()
+
+  // Get list of buckets
+  let buckets
+  try {
+    buckets = await listBuckets(credentials.cos)
+    spinner.stop()
+  } catch (e) {
+    spinner.stop()
+    console.error(`${red('error')} Invalid object storage credentials.`)
+    return process.exit(1)
+  }
+
+  // Check if there is at least 1 bucket.
+  if (buckets.length === 0) {
+    console.error(`${red('error')} No buckets exist.`)
+    return process.exit(1)
+  }
+
+  const i = Math.max(0, buckets.indexOf(config.trainingBucket()))
+
+  let trainingBucket = buckets[0]
+  if (buckets.length > 1) {
+    trainingBucket = await picker(
+      `training data location: ${dim('(Use arrow keys and enter to choose)')}`,
+      buckets,
+      {
+        default: i
+      }
+    )
+  }
+
+  config.setTrainingBucket(trainingBucket)
+  console.log(`training data location: ${config.trainingBucket()}`)
+  console.log()
+
+  spinner.setMessage('Checking bucket...')
+  spinner.start()
+
+  const validTraining = await checkRegion(
+    credentials.cos,
+    config.trainingBucket()
+  )
+
+  spinner.stop()
+
+  if (!validTraining) {
+    console.warn(
+      `${yellow(
+        'warning'
+      )} The selected training bucket is not in the region \`${
+        credentials.cos.region
+      }\`.`
+    )
+    console.log()
+  }
+
+  const defaultProjectName =
+    config.name() || config.trainingBucket() || DEFAULT_NAME
+
+  config.setName(defaultProjectName)
 
   const credentials = new CredentialsBuilder({})
 
