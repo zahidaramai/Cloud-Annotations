@@ -1,18 +1,57 @@
 const { dim, bold, red, green } = require('chalk')
-const yaml = require('js-yaml')
-const COS = require('ibm-cos-sdk')
-const fs = require('fs')
 const WML = require('./../api/wml')
 const progress = require('./../commands/progress')
-const init = require('./../commands/init')
 const input = require('./../utils/input')
 const stringLength = require('./../utils/stringLength')
 const stringToBool = require('./../utils/stringToBool')
 const optionsParse = require('./../utils/optionsParse')
-const ConfigBuilder = require('./../utils/configBuilder')
-const CredentialsBuilder = require('./../utils/credentialsBuilder')
-const cosEndpointBuilder = require('./../utils/cosEndpointBuilder')
 const Spinner = require('./../utils/spinner')
+const loadCredentials = require('./../utils/loadCredentials')
+const picker = require('./../utils/picker')
+const COS = require('ibm-cos-sdk')
+const cosEndpointBuilder = require('./../utils/cosEndpointBuilder')
+const ConfigBuilder = require('./../utils/configBuilder')
+
+async function listBuckets({ region, access_key_id, secret_access_key }) {
+  const config = {
+    endpoint: cosEndpointBuilder(region, true),
+    accessKeyId: access_key_id,
+    secretAccessKey: secret_access_key
+  }
+  const cos = new COS.S3(config)
+  return await cos
+    .listBuckets()
+    .promise()
+    .then(data =>
+      data.Buckets.map(bucket => {
+        return bucket.Name
+      })
+    )
+}
+
+async function checkRegion(
+  { region, access_key_id, secret_access_key },
+  bucket
+) {
+  const config = {
+    endpoint: cosEndpointBuilder(region, true),
+    accessKeyId: access_key_id,
+    secretAccessKey: secret_access_key
+  }
+  const cos = new COS.S3(config)
+  try {
+    const region = await cos
+      .getBucketLocation({ Bucket: bucket })
+      .promise()
+      .then(data => data.LocationConstraint)
+    if (region) {
+      return true
+    }
+    return false
+  } catch {
+    return false
+  }
+}
 
 module.exports = async options => {
   const parser = optionsParse()
@@ -27,6 +66,7 @@ module.exports = async options => {
     return process.exit()
   }
 
+  const config = new ConfigBuilder()
   const { credentials } = await loadCredentials()
 
   const spinner = new Spinner()
@@ -86,18 +126,14 @@ module.exports = async options => {
     return process.exit(1)
   }
 
-  const defaultProjectName =
-    config.name() || config.trainingBucket() || DEFAULT_NAME
+  config.setName(config.trainingBucket())
 
-  config.setName(defaultProjectName)
-
-  const credentials = new CredentialsBuilder({})
-
-  config.credentials = credentials.credentials
+  const finalizedConfig = config.config
+  finalizedConfig.credentials = credentials
 
   spinner.setMessage('Starting training run...')
   spinner.start()
-  const wml = new WML(config)
+  const wml = new WML(finalizedConfig)
   const modelId = await wml.startTraining(ops.training_zip)
   spinner.stop()
   console.log(`${green('success')} Training run submitted.`)
@@ -115,6 +151,6 @@ module.exports = async options => {
 
   if (shouldMonitor) {
     console.log()
-    await progress([modelId], config)
+    await progress([modelId], finalizedConfig)
   }
 }
