@@ -14,7 +14,7 @@ module.exports = (prompt, defaultVal) =>
     })
 
     let charCount = 0
-    rl.input.on('keypress', (_, key) => {
+    const handleKeypress = (_, key) => {
       if (key.name === 'tab' && charCount === 0) {
         process.stdout.write(eraseLines(1))
         rl.setPrompt(question)
@@ -28,13 +28,15 @@ module.exports = (prompt, defaultVal) =>
       } else {
         charCount++
       }
-    })
+    }
+    rl.input.on('keypress', handleKeypress)
 
     rl.question(question, answer => {
+      rl.input.removeListener('keypress', handleKeypress)
+      rl.close()
       const actualAnswer = answer.toString().trim() || defaultVal || ''
       process.stdout.write(eraseLines(2))
       console.log(prompt + actualAnswer)
       resolve(actualAnswer)
-      rl.close()
     })
   })

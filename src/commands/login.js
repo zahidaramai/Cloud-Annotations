@@ -1,11 +1,13 @@
 const { bold, yellow, red } = require('chalk')
 const input = require('./../utils/input')
+const optionsParse = require('./../utils/optionsParse')
 const COS = require('ibm-cos-sdk')
 const WML = require('./../api/wml')
 const CredentialsBuilder = require('./../utils/credentialsBuilder')
 const cosEndpointBuilder = require('./../utils/cosEndpointBuilder')
 const cosHandleErrors = require('./../utils/cosHandleErrors')
 const Spinner = require('./../utils/spinner')
+const loginSSO = require('./loginSSO')
 
 async function authenticate({ region, access_key_id, secret_access_key }) {
   const config = {
@@ -91,7 +93,17 @@ const cosLogin = async (credentials, force) => {
   }
 }
 
-module.exports = async (_, force, onlyCOS) => {
+module.exports = async (options, force, onlyCOS) => {
+  // Parse help options.
+  const parser = optionsParse()
+  parser.add([true, '--sso', '-sso'])
+  const ops = parser.parse(options)
+
+  if (ops.sso) {
+    await loginSSO()
+    return process.exit()
+  }
+
   const credentials = new CredentialsBuilder({})
 
   if (!onlyCOS) {
