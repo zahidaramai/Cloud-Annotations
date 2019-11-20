@@ -80,10 +80,14 @@ module.exports = async options => {
     config.setSteps(ops.steps)
   }
 
+  const spinner = new Spinner()
+
   // ///////////////////////////////////////////////////////////////////////////
   const CREDENTIAL_PATH = path.join(os.homedir(), '.cacli', 'credentials.json')
   const rawCredentials = JSON.parse(fs.readFileSync(CREDENTIAL_PATH, 'utf8'))
 
+  spinner.setMessage('Checking login...')
+  spinner.start()
   // try to refresh the token.
   const baseEndpoint = 'cloud.ibm.com'
   const endpointsEndpoint = `https://iam.${baseEndpoint}/identity/.well-known/openid-configuration`
@@ -106,14 +110,15 @@ module.exports = async options => {
       },
       json: true
     })
+    spinner.stop()
 
     rawCredentials.access_token = refreshedToken.access_token
     rawCredentials.refresh_token = refreshedToken.refresh_token
 
     fs.outputFileSync(CREDENTIAL_PATH, JSON.stringify(rawCredentials))
   } catch {
+    spinner.stop()
     await login(['--sso'])
-    // TODO: login stops the node process :p
   }
 
   const safeCredentials = JSON.parse(fs.readFileSync(CREDENTIAL_PATH, 'utf8'))
@@ -137,7 +142,6 @@ module.exports = async options => {
 
   // ///////////////////////////////////////////////////////////////////////////
 
-  const spinner = new Spinner()
   spinner.setMessage('Loading buckets...')
   spinner.start()
 
@@ -220,5 +224,14 @@ module.exports = async options => {
   if (shouldMonitor) {
     console.log()
     await progress([modelId], finalizedConfig)
+  }
+}
+
+const dirtyFatalCatcher = func => {
+  try {
+    func()
+  } catch (e) {
+    console.error(e)
+    process.exit(0)
   }
 }

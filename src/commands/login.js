@@ -101,7 +101,7 @@ module.exports = async (options, force, onlyCOS) => {
 
   if (ops.sso) {
     await loginSSO()
-    return process.exit()
+    return
   }
 
   const credentials = new CredentialsBuilder({})
